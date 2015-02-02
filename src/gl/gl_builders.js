@@ -14,6 +14,13 @@ GLBuilders.scaleTexcoordsToSprite = function (uv, area_origin, area_size, tex_si
     return suv;
 };
 
+GLBuilders.getTexcoordsForSprite = function (area_origin, area_size, tex_size) {
+    return [
+        GLBuilders.scaleTexcoordsToSprite([0, 0], area_origin, area_size, tex_size),
+        GLBuilders.scaleTexcoordsToSprite([1, 1], area_origin, area_size, tex_size)
+    ];
+};
+
 // Tesselate a flat 2D polygon
 // x & y coordinates will be set as first two elements of provided vertex_template
 GLBuilders.buildPolygons = function (
@@ -64,15 +71,27 @@ GLBuilders.buildExtrudedPolygons = function (
     normal_index,
     { texcoord_index, texcoord_scale }) {
 
+    // Top
     var min_z = z + (min_height || 0);
     var max_z = z + height;
-    var [[min_u, min_v], [max_u, max_v]] = texcoord_scale || [[0, 0], [1, 1]];
-
-    // Top
     vertex_template[2] = max_z;
     GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
 
     // Walls
+    // Fit UVs to wall quad
+    var [[min_u, min_v], [max_u, max_v]] = texcoord_scale || [[0, 0], [1, 1]];
+    if (texcoord_index) {
+        var texcoords = [
+            [min_u, max_v],
+            [min_u, min_v],
+            [max_u, min_v],
+
+            [max_u, min_v],
+            [max_u, max_v],
+            [min_u, max_v]
+        ];
+    }
+
     var num_polygons = polygons.length;
     for (var p=0; p < num_polygons; p++) {
         var polygon = polygons[p];
@@ -92,19 +111,6 @@ GLBuilders.buildExtrudedPolygons = function (
                     [contour[w][0], contour[w][1], max_z],
                     [contour[w+1][0], contour[w+1][1], max_z]
                 ];
-
-                // Fit UVs to wall quad
-                if (texcoord_index) {
-                    var texcoords = [
-                        [min_u, max_v],
-                        [min_u, min_v],
-                        [max_u, min_v],
-
-                        [max_u, min_v],
-                        [max_u, max_v],
-                        [min_u, max_v]
-                    ];
-                }
 
                 // Calc the normal of the wall from up vector and one segment of the wall triangles
                 var normal = Vector.cross(
@@ -135,226 +141,393 @@ GLBuilders.buildExtrudedPolygons = function (
 };
 
 // Build tessellated triangles for a polyline
-// Basically following the method described here for miter joints:
-// http://artgrammer.blogspot.co.uk/2011/07/drawing-polylines-by-tessellation.html
 GLBuilders.buildPolylines = function (
     lines,
-    z, width,
+    width,
     vertex_data, vertex_template,
     {
         closed_polygon,
         remove_tile_edges,
+        tile_edge_tolerance,
         texcoord_index,
-        texcoord_scale
+        texcoord_scale,
+        scaling_index,
+        join, cap
     }) {
 
-    // Build triangles
-    var vertices = [],
-        texcoords = [],
-        p,
-        pa,
-        pb,
-        num_lines = lines.length;
+    var cornersOnCap = (cap === "square")? 2 : ((cap === "round")? 4 : 0);  // Butt is the implicit default
+    var trianglesOnJoin = (join === "bevel")? 1 : ((join === "round")? 5 : 0);  // Miter is the implicit default
 
+    // Build variables
     var [[min_u, min_v], [max_u, max_v]] = texcoord_scale || [[0, 0], [1, 1]];
 
-    for (var ln = 0; ln < num_lines; ln++) {
+    // Values that are constant for each line and are passed to helper functions
+    var constants = {
+        vertex_data,
+        vertex_template,
+        halfWidth: width/2,
+        vertices: [],
+        scaling_index,
+        scalingVecs: scaling_index && [],
+        texcoord_index,
+        texcoords: texcoord_index && [],
+        min_u, min_v, max_u, max_v,
+        nPairs: 0
+    };
+
+    for (var ln = 0; ln < lines.length; ln++) {
         var line = lines[ln];
+        var lineSize = line.length;
 
-        // Multiple line segments
-        if (line.length > 2) {
-            // Build anchors for line segments:
-            // anchors are 3 points, each connecting 2 line segments that share a joint (start point, joint point, end point)
+        // Ignore non-lines
+        if (lineSize < 2) {
+            continue;
+        }
 
-            var anchors = [];
+        //  Initialize variables
+        var coordPrev = [0, 0], // Previous point coordinates
+            coordCurr = [0, 0], // Current point coordinates
+            coordNext = [0, 0]; // Next point coordinates
 
-            if (line.length > 3) {
-                // Find midpoints of each line segment
-                // For closed polygons, calculate all midpoints since segments will wrap around to first midpoint
-                var mid = [];
-                var pmax;
-                if (closed_polygon === true) {
-                    p = 0; // start on first point
-                    pmax = line.length - 1;
-                }
-                // For open polygons, skip first midpoint and use line start instead
-                else {
-                    p = 1; // start on second point
-                    pmax = line.length - 2;
-                    mid.push(line[0]); // use line start instead of first midpoint
-                }
+        var normPrev = [0, 0],  // Right normal to segment between previous and current m_points
+            normCurr = [0, 0],  // Right normal at current point, scaled for miter joint
+            normNext = [0, 0];  // Right normal to segment between current and next m_points
 
-                // Calc midpoints
-                for (; p < pmax; p++) {
-                    pa = line[p];
-                    pb = line[p+1];
-                    mid.push([(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2]);
-                }
+        var isPrev = false,
+            isNext = true;
 
-                // Same closed/open polygon logic as above: keep last midpoint for closed, skip for open
-                var mmax;
-                if (closed_polygon === true) {
-                    mmax = mid.length;
-                }
-                else {
-                    mid.push(line[line.length-1]); // use line end instead of last midpoint
-                    mmax = mid.length - 1;
-                }
+        // Add vertices to buffer acording their index
+        indexPairs(constants);
 
-                // Make anchors by connecting midpoints to line joints
-                for (p=0; p < mmax; p++)  {
-                    anchors.push([mid[p], line[(p+1) % line.length], mid[(p+1) % mid.length]]);
-                }
-            }
-            else {
-                // Degenerate case, a 3-point line is just a single anchor
-                anchors = [[line[0], line[1], line[2]]];
-            }
+        // Do this with the rest (except the last one)
+        for (let i = 0; i < lineSize ; i++) {
 
-            for (p=0; p < anchors.length; p++) {
-                if (!remove_tile_edges) {
-                    buildAnchor(anchors[p][0], anchors[p][1], anchors[p][2]);
-                }
-                else {
-                    var edge1 = GLBuilders.isOnTileEdge(anchors[p][0], anchors[p][1]);
-                    var edge2 = GLBuilders.isOnTileEdge(anchors[p][1], anchors[p][2]);
-                    if (!edge1 && !edge2) {
-                        buildAnchor(anchors[p][0], anchors[p][1], anchors[p][2]);
-                    }
-                    else if (!edge1) {
-                        buildSegment(anchors[p][0], anchors[p][1]);
-                    }
-                    else if (!edge2) {
-                        buildSegment(anchors[p][1], anchors[p][2]);
+            // There is a next one?
+            isNext = i+1 < lineSize;
+
+            if (isPrev) {
+                // If there is a previus one, copy the current (previous) values on *Prev
+                coordPrev = coordCurr;
+                normPrev = Vector.normalize(Vector.perp(coordPrev, line[i]));
+            } else if (i === 0 && closed_polygon === true) {
+                // If is the first point and is a close polygon
+
+                var needToClose = true;
+                if (remove_tile_edges) {
+                    if(GLBuilders.isOnTileEdge(line[i], line[lineSize-2], { tile_edge_tolerance })) {
+                        needToClose = false;
                     }
                 }
-            }
-        }
-        // Single 2-point segment
-        else if (line.length === 2) {
-            buildSegment(line[0], line[1]); // TODO: replace buildSegment with a degenerate form of buildAnchor? buildSegment is still useful for debugging
-        }
-    }
 
-    // Add vertices to buffer
-    for (var v=0; v < vertices.length; v++) {
-        vertex_template[0] = vertices[v][0];
-        vertex_template[1] = vertices[v][1];
-
-        // Add UVs
-        if (texcoord_index) {
-            vertex_template[texcoord_index + 0] = texcoords[v][0];
-            vertex_template[texcoord_index + 1] = texcoords[v][1];
-        }
-
-        vertex_data.addVertex(vertex_template);
-    }
-
-    // Build triangles for a single line segment, extruded by the provided width
-    function buildSegment (pa, pb) {
-        var slope = Vector.normalize([(pb[1] - pa[1]) * -1, pb[0] - pa[0]]);
-
-        var pa_outer = [pa[0] + slope[0] * width/2, pa[1] + slope[1] * width/2];
-        var pa_inner = [pa[0] - slope[0] * width/2, pa[1] - slope[1] * width/2];
-
-        var pb_outer = [pb[0] + slope[0] * width/2, pb[1] + slope[1] * width/2];
-        var pb_inner = [pb[0] - slope[0] * width/2, pb[1] - slope[1] * width/2];
-
-        vertices.push(
-            pb_inner, pb_outer, pa_inner,
-            pa_inner, pb_outer, pa_outer
-        );
-
-        // Add UVs
-        if (texcoord_index) {
-            texcoords.push(
-                [min_u, min_v], [max_u, min_v], [min_u, max_v],
-                [min_u, max_v], [max_u, min_v], [max_u, max_v]
-            );
-        }
-    }
-
-    // Build triangles for a 3-point 'anchor' shape, consisting of two line segments with a joint
-    // TODO: move these functions out of closures and into utilities
-    function buildAnchor (pa, joint, pb) {
-        // Inner and outer line segments for [pa, joint] and [joint, pb]
-        var pa_slope = Vector.normalize([(joint[1] - pa[1]) * -1, joint[0] - pa[0]]);
-        var pa_outer = [
-            [pa[0] + pa_slope[0] * width/2, pa[1] + pa_slope[1] * width/2],
-            [joint[0] + pa_slope[0] * width/2, joint[1] + pa_slope[1] * width/2]
-        ];
-        var pa_inner = [
-            [pa[0] - pa_slope[0] * width/2, pa[1] - pa_slope[1] * width/2],
-            [joint[0] - pa_slope[0] * width/2, joint[1] - pa_slope[1] * width/2]
-        ];
-
-        var pb_slope = Vector.normalize([(pb[1] - joint[1]) * -1, pb[0] - joint[0]]);
-        var pb_outer = [
-            [joint[0] + pb_slope[0] * width/2, joint[1] + pb_slope[1] * width/2],
-            [pb[0] + pb_slope[0] * width/2, pb[1] + pb_slope[1] * width/2]
-        ];
-        var pb_inner = [
-            [joint[0] - pb_slope[0] * width/2, joint[1] - pb_slope[1] * width/2],
-            [pb[0] - pb_slope[0] * width/2, pb[1] - pb_slope[1] * width/2]
-        ];
-
-        // Miter join - solve for the intersection between the two outer line segments
-        var intersection = Vector.lineIntersection(pa_outer[0], pa_outer[1], pb_outer[0], pb_outer[1]);
-        var line_debug = null;
-        if (intersection != null) {
-            var intersect_outer = intersection;
-
-            // Cap the intersection point to a reasonable distance (as join angle becomes sharper, miter joint distance would approach infinity)
-            var len_sq = Vector.lengthSq([intersect_outer[0] - joint[0], intersect_outer[1] - joint[1]]);
-            var miter_len_max = 3; // multiplier on line width for max distance miter join can be from joint
-            if (len_sq > (width * width * miter_len_max * miter_len_max)) {
-                line_debug = 'distance';
-                intersect_outer = Vector.normalize([intersect_outer[0] - joint[0], intersect_outer[1] - joint[1]]);
-                intersect_outer = [
-                    joint[0] + intersect_outer[0] * miter_len_max,
-                    joint[1] + intersect_outer[1] * miter_len_max
-                ];
+                if (needToClose) {
+                    coordPrev = line[lineSize-2];
+                    normPrev = Vector.normalize(Vector.perp(coordPrev, line[i]));
+                    isPrev = true;
+                }
             }
 
-            var intersect_inner = [
-                (joint[0] - intersect_outer[0]) + joint[0],
-                (joint[1] - intersect_outer[1]) + joint[1]
-            ];
+            // Assign current coordinate
+            coordCurr = line[i];
 
-            vertices.push(
-                intersect_inner, intersect_outer, pa_inner[0],
-                pa_inner[0], intersect_outer, pa_outer[0],
+            if (isNext) {
+                coordNext = line[i+1];
+            } else if (closed_polygon === true) {
+                // If is the last point a close polygon
+                coordNext = line[1];
+                isNext = true;
+            }
 
-                pb_inner[1], pb_outer[1], intersect_inner,
-                intersect_inner, pb_outer[1], intersect_outer
-            );
+            if (isNext) {
+                // If is not the last one get next coordinates and calculate the right normal
+
+                normNext = Vector.normalize(Vector.perp(coordCurr, coordNext));
+                if (remove_tile_edges) {
+                    if (GLBuilders.isOnTileEdge(coordCurr, coordNext, { tile_edge_tolerance })) {
+                        normCurr = Vector.normalize(Vector.perp(coordPrev, coordCurr));
+                        if (isPrev) {
+                            addVertexPair(coordCurr, normCurr, i/lineSize, constants);
+                            constants.nPairs++;
+
+                            // Add vertices to buffer acording their index
+                            indexPairs(constants);
+                        }
+                        isPrev = false;
+                        continue;
+                    }
+                }
+            }
+
+            //  Compute current normal
+            if (isPrev) {
+                //  If there is a PREVIUS ...
+                if (isNext) {
+                    // ... and a NEXT ONE, compute previus and next normals (scaled by the angle with the last prev)
+                    normCurr = Vector.normalize(Vector.add(normPrev, normNext));
+                    var scale = 2 / (1 + Math.abs(Vector.dot(normPrev, normCurr)));
+                    normCurr = Vector.mult(normCurr,scale*scale);
+                } else {
+                    // ... and there is NOT a NEXT ONE, copy the previus next one (which is the current one)
+                    normCurr = Vector.normalize(Vector.perp(coordPrev, coordCurr));
+                }
+            } else {
+                // If is NOT a PREVIUS ...
+                if (isNext) {
+                    // ... and a NEXT ONE,
+                    normNext = Vector.normalize(Vector.perp(coordCurr, coordNext));
+                    normCurr = normNext;
+                } else {
+                    // ... and NOT a NEXT ONE, nothing to do (without prev or next one this is just a point)
+                    continue;
+                }
+            }
+
+            if (isPrev || isNext) {
+                // If is the BEGINING of a LINE
+                if (i === 0 && !isPrev && !closed_polygon) {
+                    addCap(coordCurr, normCurr, cornersOnCap, true, constants);
+                }
+
+                // If is a JOIN
+                if(trianglesOnJoin !== 0 && isPrev && isNext) {
+                    addJoin([coordPrev, coordCurr, coordNext],
+                            [normPrev,normCurr, normNext],
+                            i/lineSize, trianglesOnJoin,
+                            constants);
+                } else {
+                    addVertexPair(coordCurr, normCurr, i/(lineSize-1), constants);
+                }
+
+                if (isNext) {
+                   constants.nPairs++;
+                }
+
+                isPrev = true;
+            }
         }
-        else {
-            // Line segments are parallel, use the first outer line segment as join instead
-            line_debug = 'parallel';
-            pa_inner[1] = pb_inner[0];
-            pa_outer[1] = pb_outer[0];
 
-            vertices.push(
-                pa_inner[1], pa_outer[1], pa_inner[0],
-                pa_inner[0], pa_outer[1], pa_outer[0],
+        // Add vertices to buffer acording their index
+        indexPairs(constants);
 
-                pb_inner[1], pb_outer[1], pb_inner[0],
-                pb_inner[0], pb_outer[1], pb_outer[0]
-            );
-        }
-
-        if (texcoord_index) {
-            texcoords.push(
-                [min_u, min_v], [max_u, min_v], [min_u, max_v],
-                [min_u, max_v], [max_u, min_v], [max_u, max_v],
-
-                [min_u, min_v], [max_u, min_v], [min_u, max_v],
-                [min_u, max_v], [max_u, min_v], [max_u, max_v]
-            );
+         // If is the END OF a LINE
+        if(!closed_polygon) {
+            addCap(coordCurr, normCurr, cornersOnCap , false, constants);
         }
     }
 };
+
+// Add to equidistant pairs of vertices (internal method for polyline builder)
+function addVertex(coord, normal, uv, { halfWidth, vertices, scalingVecs, texcoords }) {
+    if (scalingVecs) {
+        //  a. If scaling is on add the vertex (the currCoord) and the scaling Vecs (normals pointing where to extrude the vertexes)
+        vertices.push(coord);
+        scalingVecs.push(normal);
+    } else {
+        //  b. Add the extruded vertexes
+        vertices.push([coord[0] + normal[0] * halfWidth,
+                       coord[1] + normal[1] * halfWidth]);
+    }
+
+    // c) Add uv's if they are enable
+    if (texcoords) {
+        texcoords.push(uv);
+    }
+}
+
+//  Add to equidistant pairs of vertices (internal method for polyline builder)
+function addVertexPair (coord, normal, v_pct, constants) {
+    addVertex(coord, normal, [constants.max_u, (1-v_pct)*constants.min_v + v_pct*constants.max_v], constants);
+    addVertex(coord, Vector.neg(normal), [constants.min_u, (1-v_pct)*constants.min_v + v_pct*constants.max_v], constants);
+}
+
+//  Tessalate a FAN geometry between points A       B
+//  using their normals from a center        \ . . /
+//  and interpolating their UVs               \ p /
+//                                             \./
+//                                              C
+function addFan (coord, nA, nC, nB, uA, uC, uB, signed, numTriangles, constants) {
+
+    if (numTriangles < 1) {
+        return;
+    }
+
+    // Add previus vertices to buffer and clean the buffers and index pairs
+    // Because we are going to add more triangles.
+    indexPairs(constants);
+
+    var normCurr = Vector.set(nA);
+    var normPrev = [0,0];
+
+    var angle_delta = Vector.dot(nA, nB);
+    if (angle_delta < -1) {
+        angle_delta = -1;
+    }
+    angle_delta = Math.acos(angle_delta)/numTriangles;
+
+    if (!signed) {
+        angle_delta *= -1;
+    }
+
+    var uvCurr = Vector.set(uA);
+    var uv_delta = Vector.div(Vector.sub(uB,uA), numTriangles);
+
+    //  Add the first and CENTER vertex
+    //  The triangles will be composed on FAN style arround it
+    addVertex(coord, nC, uC, constants);
+
+    //  Add first corner
+    addVertex(coord, normCurr, uA, constants);
+
+    // Iterate through the rest of the coorners
+    for (var t = 0; t < numTriangles; t++) {
+        normPrev = Vector.normalize(normCurr);
+        normCurr = Vector.rot( Vector.normalize(normCurr), angle_delta);     //  Rotate the extrusion normal
+
+        if (numTriangles === 4 && (t === 0 || t === numTriangles - 2)) {
+            var scale = 2 / (1 + Math.abs(Vector.dot(normPrev, normCurr)));
+            normCurr = Vector.mult(normCurr, scale*scale);
+        }
+
+        uvCurr = Vector.add(uvCurr,uv_delta);
+
+        addVertex(coord, normCurr, uvCurr, constants);      //  Add computed corner
+    }
+
+    for (var i = 0; i < numTriangles; i++) {
+        if (signed) {
+            addIndex(i+2, constants);
+            addIndex(0, constants);
+            addIndex(i+1, constants);
+        } else {
+            addIndex(i+1, constants);
+            addIndex(0, constants);
+            addIndex(i+2, constants);
+        }
+    }
+
+    // Clean the buffer
+    constants.vertices = [];
+    if (constants.scalingVecs) {
+        constants.scalingVecs = [];
+    }
+    if (constants.texcoords) {
+        constants.texcoords = [];
+    }
+}
+
+//  Add speccials joins (not miter) tipes that require FAN tessalations
+//  Using this ( http://www.codeproject.com/Articles/226569/Drawing-polylines-by-tessellation ) as reference
+function addJoin (coords, normals, v_pct, nTriangles, constants) {
+
+    var T = [Vector.set(normals[0]), Vector.set(normals[1]), Vector.set(normals[2])];
+    var signed = Vector.signed_area(coords[0], coords[1], coords[2]) > 0;
+
+    var nA = T[0],              // normal to point A (aT)
+        nC = Vector.neg(T[1]),  // normal to center (-vP)
+        nB = T[2];              // normal to point B (bT)
+
+    var uA = [constants.max_u, (1-v_pct)*constants.min_v + v_pct*constants.max_v],
+        uC = [constants.min_u, (1-v_pct)*constants.min_v + v_pct*constants.max_v],
+        uB = [constants.max_u, (1-v_pct)*constants.min_v + v_pct*constants.max_v];
+
+    if (signed) {
+        addVertex(coords[1], nA, uA, constants);
+        addVertex(coords[1], nC, uC, constants);
+    } else {
+        nA = Vector.neg(T[0]);
+        nC = T[1];
+        nB = Vector.neg(T[2]);
+        addVertex(coords[1], nC, uC, constants);
+        addVertex(coords[1], nA, uA, constants);
+    }
+
+    addFan(coords[1], nA, nC, nB, uA, uC, uB, signed, nTriangles, constants);
+
+    if (signed) {
+        addVertex(coords[1], nB, uB, constants);
+        addVertex(coords[1], nC, uC, constants);
+    } else {
+        addVertex(coords[1], nC, uC, constants);
+        addVertex(coords[1], nB, uB, constants);
+    }
+}
+
+//  Function to add the vertex need for line caps,
+//  because re-use the buffers needs to be at the end
+function addCap (coord, normal, numCorners, isBeginning, constants) {
+
+    if (numCorners < 1) {
+        return;
+    }
+
+    // UVs
+    var uvA = [constants.min_u,constants.min_v],                        // Begining angle UVs
+        uvC = [constants.min_u+(constants.max_u-constants.min_u)/2, constants.min_v],   // center point UVs
+        uvB = [constants.max_u,constants.min_v];                        // Ending angle UVs
+
+    if (!isBeginning) {
+        uvA = [constants.min_u,constants.max_v],                        // Begining angle UVs
+        uvC = [constants.min_u+(constants.max_u-constants.min_u)/2, constants.max_v],   // center point UVs
+        uvB = [constants.max_u,constants.max_v];
+    }
+
+    addFan( coord,
+            Vector.neg(normal), [0, 0], normal,
+            uvA, uvC, uvB,
+            isBeginning, numCorners*2, constants);
+}
+
+// Add a vertex based on the index position into the VBO (internal method for polyline builder)
+function addIndex (index, { vertex_data, vertex_template, halfWidth, vertices, scaling_index, scalingVecs, texcoord_index, texcoords }) {
+    // Prevent access to undefined vertices
+    if (index >= vertices.length) {
+        return;
+    }
+
+    // set vertex position
+    vertex_template[0] = vertices[index][0];
+    vertex_template[1] = vertices[index][1];
+
+    // set UVs
+    if (texcoord_index) {
+        vertex_template[texcoord_index + 0] = texcoords[index][0];
+        vertex_template[texcoord_index + 1] = texcoords[index][1];
+    }
+
+    // set Scaling vertex (X, Y normal direction + Z haltwidth as attribute)
+    if (scaling_index) {
+        vertex_template[scaling_index + 0] = scalingVecs[index][0];
+        vertex_template[scaling_index + 1] = scalingVecs[index][1];
+        vertex_template[scaling_index + 2] = halfWidth;
+    }
+
+    //  Add vertex to VBO
+    vertex_data.addVertex(vertex_template);
+}
+
+// Add the index vertex to the VBO and clean the buffers
+function indexPairs (constants) {
+    // Add vertices to buffer acording their index
+    for (var i = 0; i < constants.nPairs; i++) {
+        addIndex(2*i+2, constants);
+        addIndex(2*i+1, constants);
+        addIndex(2*i+0, constants);
+
+        addIndex(2*i+2, constants);
+        addIndex(2*i+3, constants);
+        addIndex(2*i+1, constants);
+    }
+
+    constants.nPairs = 0;
+
+    // Clean the buffer
+    constants.vertices = [];
+    if (constants.scalingVecs) {
+        constants.scalingVecs = [];
+    }
+    if (constants.texcoords) {
+        constants.texcoords = [];
+    }
+}
 
 // Build a quad centered on a point
 GLBuilders.buildQuadsForPoints = function (
@@ -362,7 +535,19 @@ GLBuilders.buildQuadsForPoints = function (
     vertex_data, vertex_template,
     { texcoord_index, texcoord_scale }) {
 
-    var [[min_u, min_v], [max_u, max_v]] = texcoord_scale || [[0, 0], [1, 1]];
+    if (texcoord_index) {
+        var [[min_u, min_v], [max_u, max_v]] = texcoord_scale || [[0, 0], [1, 1]];
+        var texcoords = [
+            [min_u, min_v],
+            [max_u, min_v],
+            [max_u, max_v],
+
+            [min_u, min_v],
+            [max_u, max_v],
+            [min_u, max_v]
+        ];
+    }
+
     var num_points = points.length;
     for (var p=0; p < num_points; p++) {
         var point = points[p];
@@ -374,20 +559,8 @@ GLBuilders.buildQuadsForPoints = function (
 
             [point[0] - width/2, point[1] - height/2],
             [point[0] + width/2, point[1] + height/2],
-            [point[0] - width/2, point[1] + height/2],
+            [point[0] - width/2, point[1] + height/2]
         ];
-
-        if (texcoord_index) {
-            var texcoords = [
-                [min_u, min_v],
-                [max_u, min_v],
-                [max_u, max_v],
-
-                [min_u, min_v],
-                [max_u, max_v],
-                [min_u, max_v]
-            ];
-        }
 
         for (var pos=0; pos < 6; pos++) {
             // Add texcoords
@@ -406,12 +579,12 @@ GLBuilders.buildQuadsForPoints = function (
 /* Utility functions */
 
 // Tests if a line segment (from point A to B) is nearly coincident with the edge of a tile
-GLBuilders.isOnTileEdge = function (pa, pb, options)
-{
+GLBuilders.isOnTileEdge = function (pa, pb, options) {
     options = options || {};
 
     var tolerance_function = options.tolerance_function || GLBuilders.valuesWithinTolerance;
-    var tolerance = options.tolerance || 1; // tweak this adjust if catching too few/many line segments near tile edges
+    var tolerance = options.tolerance || 3; // tweak this adjust if catching too few/many line segments near tile edges
+                                            // TODO: make tolerance configurable by source if necessary
     var tile_min = GLBuilders.tile_bounds[0];
     var tile_max = GLBuilders.tile_bounds[1];
     var edge = null;
@@ -431,23 +604,20 @@ GLBuilders.isOnTileEdge = function (pa, pb, options)
     return edge;
 };
 
-GLBuilders.setTileScale = function (scale)
-{
+GLBuilders.setTileScale = function (scale) {
     GLBuilders.tile_bounds = [
         { x: 0, y: 0},
         { x: scale, y: -scale } // TODO: correct for flipped y-axis?
     ];
 };
 
-GLBuilders.valuesWithinTolerance = function (a, b, tolerance)
-{
+GLBuilders.valuesWithinTolerance = function (a, b, tolerance) {
     tolerance = tolerance || 1;
     return (Math.abs(a - b) < tolerance);
 };
 
 // Build a zigzag line pattern for testing joins and caps
-GLBuilders.buildZigzagLineTestPattern = function ()
-{
+GLBuilders.buildZigzagLineTestPattern = function () {
     var min = { x: 0, y: 0}; //  tile.min;
     var max = { x: 4096, y: 4096 }; // tile.max;
 

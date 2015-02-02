@@ -5,6 +5,9 @@
 
 node_modules
 
+# a make target for npm install
+.npm
+
 # OS misc
 .DS_Store
 

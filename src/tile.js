@@ -11,9 +11,10 @@ export default class Tile {
         Tile
         @constructor
         Required properties:
-        spec.coords: object with {x, y, z} properties identifying tile coordinate location
+        coords: object with {x, y, z} properties identifying tile coordinate location
+        worker: web worker to handle tile construction
     */
-    constructor(spec) {
+    constructor({ coords, worker, max_zoom }) {
         Object.assign(this, {
             coords: {
                 x: null,
@@ -29,10 +30,18 @@ export default class Tile {
                 min: Infinity,
                 max: -Infinity
             }
-        }, spec);
+        });
 
+        this.worker = worker;
+        this.max_zoom = max_zoom;
+
+        this.coords = coords;
         this.coords = this.calculateOverZoom();
         this.key = [this.coords.x, this.coords.y, this.coords.z].join('/');
+        this.min = Geo.metersForTile(this.coords);
+        this.max = Geo.metersForTile({x: this.coords.x + 1, y: this.coords.y + 1, z: this.coords.z }),
+        this.span = { x: (this.max.x - this.min.x), y: (this.max.y - this.min.y) };
+        this.bounds = { sw: { x: this.min.x, y: this.max.y }, ne: { x: this.max.x, y: this.min.y } };
     }
 
     static create(spec) { return new Tile(spec); }
@@ -82,111 +91,57 @@ export default class Tile {
     // Process geometry for tile - called by web worker
     // Returns a set of tile keys that should be sent to the main thread (so that we can minimize data exchange between worker and main thread)
     static buildGeometry (tile, layers, rules, styles) {
-        var feature, style, feature_style;
-        var vertex_data = {};
-        var style_vertex_data;
-
         tile.debug.rendering = +new Date();
+
+        let tile_data = {};
 
         for (let sourceName in tile.sources) {
             let source = tile.sources[sourceName];
-            // TODO fix the debug
             source.debug.rendering = +new Date();
             source.debug.features = 0;
 
             // Treat top-level style rules as 'layers'
-            for (var name in layers) {
-                let layer = layers[name];
+            for (let layer_name in layers) {
+                let layer = layers[layer_name];
                 // Skip layers with no geometry defined
                 if (!layer.geometry) {
                     log.warn(`Layer ${layer} was defined without an geometry configuration and will not be rendered.`);
                     continue;
                 }
 
-                var geom = Tile.getGeometryForSource(source, layer.geometry);
-
+                let geom = Tile.getGeometryForSource(source, layer.geometry);
                 if (!geom) {
                     continue;
                 }
 
-<<<<<<< HEAD
-            var geom = Tile.getGeometryForSource(tile, layer.geometry);
-            if (geom) {
-                console.log("geom:");
-                console.log(geom);
-=======
->>>>>>> master
-                var num_features = geom.features.length;
-
                 // Render features within each layer, in reverse order - aka top to bottom
-                for (var f = num_features-1; f >= 0; f--) {
-                    feature = geom.features[f];
+                let num_features = geom.features.length;
+                for (let f = num_features-1; f >= 0; f--) {
+                    let feature = geom.features[f];
+                    let context = StyleParser.getFeatureParseContext(feature, tile);
 
-                    feature.layer = name;
-
-                    var context = StyleParser.getFeatureParseContext(feature, tile);
                     // Find matching rules
-                    var matchedRules = [];
-                    var layer_rules = rules[name];
-                    for (var r in layer_rules) {
-                        layer_rules[r].matchFeature(context, matchedRules);
+                    let matched_rules = [];
+                    let layer_rules = rules[layer_name];
+                    for (let r in layer_rules) {
+                        layer_rules[r].matchFeature(context, matched_rules);
                     }
 
                     // Parse & render styles
-                    for (var rule of matchedRules) {
+                    for (let rule of matched_rules) {
                         if (!rule.visible) {
                             continue;
                         }
 
-                        // Parse style
+                        // Add to style
                         rule.name = rule.name || StyleParser.defaults.style.name;
-                        style = styles[rule.name];
-                        feature_style = style.parseFeature(feature, rule, context);
+                        let style = styles[rule.name];
 
-                        // Skip feature?
-                        if (!feature_style) {
-                            continue;
+                        if (!tile_data[rule.name]) {
+                            tile_data[rule.name] = style.startData();
                         }
 
-                        // Track min/max order range
-                        if (feature_style.order < tile.order.min) {
-                            tile.order.min = feature_style.order;
-                        }
-                        if (feature_style.order > tile.order.max) {
-                            tile.order.max = feature_style.order;
-                        }
-
-                        // First feature in this render style?
-                        if (vertex_data[style.name] == null) {
-                            vertex_data[style.name] = style.vertex_layout.createVertexData();
-                        }
-                        style_vertex_data = vertex_data[style.name];
-
-                        // Layer order: 'order' property between [-1, 1] adjusts render order of features *within* this layer
-                        // Does not affect order outside of this layer, e.g. all features on previous layers are drawn underneath
-                        //  this one, all features on subsequent layers are drawn on top of this one
-                        // feature_style.layer = (layer.geometry.order || 0) + 0.5;      // 'center' this layer at 0.5 above the baseline
-                        // feature_style.layer += feature_style.order / 2.5;   // scale [-1, 1] to [-.4, .4] to stay within layer bounds, .1 buffer to be safe
-                        feature_style.layer = feature_style.order;
-
-                        if (feature.geometry.type === 'Polygon') {
-                            style.buildPolygons([feature.geometry.coordinates], feature_style, style_vertex_data);
-                        }
-                        else if (feature.geometry.type === 'MultiPolygon') {
-                            style.buildPolygons(feature.geometry.coordinates, feature_style, style_vertex_data);
-                        }
-                        else if (feature.geometry.type === 'LineString') {
-                            style.buildLines([feature.geometry.coordinates], feature_style, style_vertex_data);
-                        }
-                        else if (feature.geometry.type === 'MultiLineString') {
-                            style.buildLines(feature.geometry.coordinates, feature_style, style_vertex_data);
-                        }
-                        else if (feature.geometry.type === 'Point') {
-                            style.buildPoints([feature.geometry.coordinates], feature_style, style_vertex_data);
-                        }
-                        else if (feature.geometry.type === 'MultiPoint') {
-                            style.buildPoints(feature.geometry.coordinates, feature_style, style_vertex_data);
-                        }
+                        style.addFeature(feature, rule, context, tile_data[rule.name]);
                     }
 
                     source.debug.features++;
@@ -194,33 +149,49 @@ export default class Tile {
 
             }
 
-
             source.debug.rendering = +new Date() - source.debug.rendering;
         }
 
         // Finalize array buffer for each render style
         tile.vertex_data = {};
-        for (var m in vertex_data) {
-            tile.vertex_data[m] = vertex_data[m].end().buffer;
+        let queue = [];
+        for (let style_name in tile_data) {
+            let style = styles[style_name];
+            queue.push(style.endData(tile_data[style_name]).then((data) => {
+                if (data) {
+                    tile.vertex_data[style_name] = data;
+
+                    // Track min/max order range
+                    if (tile_data[style_name].order.min < tile.order.min) {
+                        tile.order.min = tile_data[style_name].order.min;
+                    }
+                    if (tile_data[style_name].order.max > tile.order.max) {
+                        tile.order.max = tile_data[style_name].order.max;
+                    }
+                }
+            }));
         }
 
-        tile.debug.rendering = +new Date() - tile.debug.rendering;
-        tile.debug.projection = 0;
-        tile.debug.features = 0;
-        tile.debug.network = 0;
-        tile.debug.parsing = 0;
+        return Promise.all(queue).then(() => {
+            // Aggregate debug info
+            tile.debug.rendering = +new Date() - tile.debug.rendering;
+            tile.debug.projection = 0;
+            tile.debug.features = 0;
+            tile.debug.network = 0;
+            tile.debug.parsing = 0;
 
-        for (let i in tile.sources) {
-            tile.debug.features  += tile.sources[i].debug.features;
-            tile.debug.projection += tile.sources[i].debug.projection;
-            tile.debug.network += tile.sources[i].debug.network;
-            tile.debug.parsing += tile.sources[i].debug.parsing;
-        }
+            for (let i in tile.sources) {
+                tile.debug.features  += tile.sources[i].debug.features;
+                tile.debug.projection += tile.sources[i].debug.projection;
+                tile.debug.network += tile.sources[i].debug.network;
+                tile.debug.parsing += tile.sources[i].debug.parsing;
+            }
 
-        // Return keys to be transfered to main thread
-        return {
-            vertex_data: true
-        };
+            // Return keys to be transfered to main thread
+            return {
+                vertex_data: true
+            };
+        });
     }
 
     /**
@@ -307,19 +278,13 @@ export default class Tile {
         }
     }
 
-    // TODO: pass bounds only, rest of scene isn't needed
-    updateVisibility(scene) {
-        var visible = this.visible;
-        this.visible = this.isInZoom(scene.capped_zoom) && Geo.boxIntersect(this.bounds, scene.bounds_meters_buffered);
+    update(scene) {
+        this.visible =  (this.coords.z === Math.round(scene.zoom)) ||
+                        (this.coords.z === this.max_zoom && scene.zoom >= this.max_zoom);
+
         this.center_dist = Math.abs(scene.center_meters.x - this.min.x) + Math.abs(scene.center_meters.y - this.min.y);
-        return (visible !== this.visible);
     }
 
-    isInZoom(zoom) {
-        return (Math.min(this.coords.z, this.max_zoom || this.coords.z)) === zoom;
-    }
-
-    // TODO fix the z adjustment for continuous zoom
     calculateOverZoom() {
         var zgap,
             {x, y, z} = this.coords;
@@ -337,14 +302,9 @@ export default class Tile {
     load(scene) {
         scene.trackTileSetLoadStart();
 
-        this.min = Geo.metersForTile(this.coords);
-        this.max = Geo.metersForTile({x: this.coords.x + 1, y: this.coords.y + 1, z: this.coords.z }),
-        this.span = { x: (this.max.x - this.min.x), y: (this.max.y - this.min.y) };
-        this.bounds = { sw: { x: this.min.x, y: this.max.y }, ne: { x: this.max.x, y: this.min.y } };
         this.loading = true;
-
         this.build(scene);
-        this.updateVisibility(scene);
+        this.update(scene);
     }
 
     merge(other) {

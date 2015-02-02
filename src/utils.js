@@ -27,6 +27,23 @@ Utils.getIn = function (obj, key) {
     return walk(obj, key);
 };
 
+// Add the current base URL for schemeless or protocol-less URLs
+// Maybe use https://github.com/medialize/URI.js if more robust functionality is needed
+Utils.addBaseURL = function (url) {
+    if (!url) {
+        return;
+    }
+
+    // Schemeless, add protocol
+    if (url.substr(0, 2) === '//') {
+        url = window.location.protocol + url;
+    }
+    // No http(s) or data, add base
+    else if (url.search(/(http|https|data):\/\//) < 0) {
+        url = window.location.origin + window.location.pathname + url;
+    }
+    return url;
+};
 
 Utils.cacheBusterForUrl = function (url) {
     return url + '?' + (+new Date());
@@ -154,39 +171,21 @@ Utils.stringsToFunctions = function(obj, wrap) {
     return obj;
 };
 
-// Run a block of code only if in the main thread
-Utils.inMainThread = function(block) {
+// Mark thread as main or worker
+(function() {
     try {
         if (window.document !== undefined) {
-            block();
+            Utils.isWorkerThread = false;
+            Utils.isMainThread   = true;
         }
     }
-    catch (e) {
-    }
-};
-
-// Run a block of code only if in a web worker thread
-Utils.inWorkerThread = function(block) {
-    try {
-        if (window.document !== undefined) {
-        }
-    } // jshint ignore:line
     catch (e) {
         if (self !== undefined) {
-            block();
+            Utils.isWorkerThread = true;
+            Utils.isMainThread   = false;
         }
     }
-};
-
-Utils.inWorkerThread(() => {
-    Utils.isWorkerThread = true;
-    Utils.isMainThread   = false;
-});
-
-Utils.inMainThread(() => {
-    Utils.isMainThread   = true;
-    Utils.isWorkerThread = false;
-});
+})();
 
 // Get URL that the current script was loaded from
 // If currentScript is not available, loops through <script> elements searching for a list of provided paths
@@ -231,6 +230,10 @@ Utils.isPowerOf2 = function(value) {
 // TODO: add other interpolation methods besides linear
 //
 Utils.interpolate = function(x, points) {
+    if (!x || !points) {
+        return points;
+    }
+
     // If this doesn't resemble a list of control points, just return the original value
     if (!Array.isArray(points) || points.some(v => { return !Array.isArray(v); })) {
         return points;
@@ -302,19 +305,29 @@ Utils.values = function* (obj) {
 // Recursive iterators for all properties of an object, no matter how deeply nested
 // TODO: fix for circular structures
 Utils.recurseEntries = function* (obj) {
+    if (!obj) {
+        return;
+    }
     for (var key of Object.keys(obj)) {
-        yield [key, obj[key]];
-        if (typeof obj[key] === 'object') {
-            yield* Utils.recurseEntries(obj[key]);
+        if (obj[key]) {
+            yield [key, obj[key]];
+            if (typeof obj[key] === 'object') {
+                yield* Utils.recurseEntries(obj[key]);
+            }
         }
     }
 };
 
 Utils.recurseValues = function* (obj) {
+    if (!obj) {
+        return;
+    }
     for (var key of Object.keys(obj)) {
-        yield obj[key];
-        if (typeof obj[key] === 'object') {
-            yield* Utils.recurseValues(obj[key]);
+        if (obj[key]) {
+            yield obj[key];
+            if (typeof obj[key] === 'object') {
+                yield* Utils.recurseValues(obj[key]);
+            }
         }
     }
 };

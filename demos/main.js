@@ -34,11 +34,12 @@
         //     type: 'GeoJSONTileSource',
         //     url: window.location.protocol + '//tile.openstreetmap.us/vectiles-all/{z}/{x}/{y}.json'
         // },
-        // 'mapbox': {
-        //     type: 'MapboxFormatTileSource',
-        //     url: 'http://{s:[a,b,c,d]}.tiles.mapbox.com/v4/mapbox.mapbox-streets-v6-dev/{z}/{x}/{y}.vector.pbf?access_token=pk.eyJ1IjoiYmNhbXBlciIsImEiOiJWUmh3anY0In0.1fgSTNWpQV8-5sBjGbBzGg',
-        //     max_zoom: 15
-        // }
+
+        'mapbox': {
+            type: 'MapboxFormatTileSource',
+            url: 'http://{s:[a,b,c,d]}.tiles.mapbox.com/v4/mapbox.mapbox-streets-v6-dev/{z}/{x}/{y}.vector.pbf?access_token=pk.eyJ1IjoiYmNhbXBlciIsImEiOiJWUmh3anY0In0.1fgSTNWpQV8-5sBjGbBzGg',
+            max_zoom: 15
+        }
 
     },
         default_tile_source = 'mapzen',
@@ -52,7 +53,7 @@
 
 
 
-    getVaulesFromUrl();
+    getValuesFromUrl();
 
     // default source, can be overriden by URL
     var
@@ -91,7 +92,7 @@
     // #[lat],[lng],[zoom]
     // #[source],[lat],[lng],[zoom]
     // #[source],[location name]
-    function getVaulesFromUrl() {
+    function getValuesFromUrl() {
 
         url_hash = window.location.hash.slice(1, window.location.hash.length).split(',');
 
@@ -136,12 +137,6 @@
         clearTimeout(update_url_timeout);
         update_url_timeout = setTimeout(function() {
             var center = map.getCenter();
-
-            // TODO: this looks like a leaflet bug? sometimes returning a LatLng object, sometimes an array
-            if (Array.isArray(center)) {
-                center = { lat: center[0], lng: center[1] };
-            }
-
             var url_options = [default_tile_source, center.lat, center.lng, map.getZoom()];
 
             if (rS) {
@@ -236,7 +231,11 @@
                     layer_styles[l].style = Object.assign({}, this.initial.layers[l].style);
                 }
             };
-            gui.camera = scene.config.camera.type = this.initial.camera || scene.config.camera.type;
+
+            if (this.initial.camera) {
+                scene.setActiveCamera(this.initial.camera);
+            }
+            gui.camera = scene.getActiveCamera();
 
             // Remove existing style-specific controls
             gui.removeFolder(this.folder);
@@ -251,7 +250,7 @@
                         };
                     }
                 }
-                this.initial.camera = this.initial.camera || scene.config.camera.type;
+                this.initial.camera = this.initial.camera || scene.getActiveCamera();
 
                 // Remove existing style-specific controls
                 gui.removeFolder(this.folder);
@@ -260,7 +259,13 @@
                     var settings = this.settings[style] || {};
 
                     // Change projection if specified
-                    gui.camera = scene.config.camera.type = settings.camera || this.initial.camera;
+                    if (settings.camera) {
+                        scene.setActiveCamera(settings.camera);
+                    }
+                    else if (this.initial.camera) {
+                        scene.setActiveCamera(this.initial.camera);
+                    }
+                    gui.camera = this.initial.camera = scene.getActiveCamera();
 
                     // Style-specific setup function
                     if (settings.setup) {
@@ -535,14 +540,17 @@
             'Perspective': 'perspective',
             'Isometric': 'isometric'
         };
-        gui.camera = layer.scene.config.camera.type;
+        gui.camera = scene.getActiveCamera();
         gui.add(gui, 'camera', camera_types).onChange(function(value) {
-            layer.scene.config.camera.type = value;
-            layer.scene.updateConfig();
+            scene.setActiveCamera(value);
+            scene.updateConfig();
         });
 
         // Lighting
         var lighting_presets = {
+            'None': {
+                type: null
+            },
             'Point': {
                 type: 'point',
                 position: [0, 0, 200],
@@ -595,7 +603,7 @@
         var layer_gui = gui.addFolder('Layers');
         var layer_controls = {};
         Object.keys(layer.scene.config.layers).forEach(function(l) {
-            if (layer.scene.config.layers[l] == null) {
+            if (!layer.scene.config.layers[l] || !layer.scene.config.layers[l].style) {
                 return;
             }
 

@@ -1,13 +1,24 @@
-camera:
-    type: perspective
-    # focal_length: 1
-    focal_length: [[16, 2], [17, 2.5], [18, 3], [19, 4], [20, 6]] # pairs of [zoom, focal len]
-    vanishing_point: [-250, -250] # relative to center of screen, in pixels
+cameras:
+    perspective:
+        type: perspective
+        # focal_length: 1
+        focal_length: [[16, 2], [17, 2.5], [18, 3], [19, 4], [20, 6]] # pairs of [zoom, focal len]
+        # fov: 60
+        # fov: [[16, 60], [20, 15]]
+        vanishing_point: [-250, -250] # relative to center of screen, in pixels
+        active: true
 
-    # type: isometric
-    # axis: [1, .5]
+    isometric:
+        type: isometric
+        # axis: [1, .5]
 
-    # type: flat
+    flat:
+        type: flat
+
+    # testing camera with a location
+    central_park:
+        position: { lng: -73.97297501564027, lat: 40.76434821445407 }
+        zoom: 17
 
 lighting:
     type: point
@@ -332,6 +343,8 @@ layers:
             # color: Style.color.pseudoRandomColor()
             # color: red #[0.4, 0.4, 0.4]
             # width: function () { return 2 * Math.log(zoom); }
+            cap: round
+            join: round
 
         highway:
             filter: { kind: highway }
@@ -347,6 +360,14 @@ layers:
                 outline:
                     color: [0.7, 0.7, 0.7]
                     width: function () { return (zoom >= 18 && (3/8 * Math.log(zoom))); }
+
+            bridge:
+                filter: { is_bridge: yes }
+                style:
+                    outline:
+                        # don't draw outline caps on bridges because they draw over connecting non-bridge roads
+                        # see FDR Drive: 40.70278074491014,-74.00795169174671,20
+                        cap: butt
 
             tunnel:
                 # filter: function() { return feature.is_link == 'yes' || feature.is_tunnel == 'yes'; }

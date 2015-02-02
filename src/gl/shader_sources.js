@@ -1,6 +1,22 @@
 // Generated from GLSL files, don't edit!
 var shaderSources = {};
 
+shaderSources['modules/directional_light'] =
+"vec3 directionalLight (\n" +
+"    vec3 normal,\n" +
+"    vec3 color,\n" +
+"    vec3 light_dir,\n" +
+"    float light_ambient) {\n" +
+"\n" +
+"    // Flat shading\n" +
+"    light_dir = normalize(light_dir);\n" +
+"    color *= dot(normal, light_dir * -1.0) + light_ambient;\n" +
+"    return color;\n" +
+"}\n" +
+"\n" +
+"#pragma glslify: export(directionalLight)\n" +
+"";
+
 shaderSources['modules/point_light'] =
 "vec3 pointLight (\n" +
 "    vec4 position,\n" +
@@ -38,57 +54,6 @@ shaderSources['modules/popup'] =
 "}\n" +
 "\n" +
 "#pragma glslify: export(popup)\n" +
-"";
-
-shaderSources['modules/directional_light'] =
-"vec3 directionalLight (\n" +
-"    vec3 normal,\n" +
-"    vec3 color,\n" +
-"    vec3 light_dir,\n" +
-"    float light_ambient) {\n" +
-"\n" +
-"    // Flat shading\n" +
-"    light_dir = normalize(light_dir);\n" +
-"    color *= dot(normal, light_dir * -1.0) + light_ambient;\n" +
-"    return color;\n" +
-"}\n" +
-"\n" +
-"#pragma glslify: export(directionalLight)\n" +
-"";
-
-shaderSources['modules/spherical_environment_map'] =
-"// Spherical environment map\n" +
-"// Based on: http://www.clicktorelease.com/blog/creating-spherical-environment-mapping-shader\n" +
-"\n" +
-"// view_pos: location of camera\n" +
-"// position: location of current point on surface\n" +
-"// normal: normal of current piont on surface\n" +
-"// envmap: spherical environment map texture\n" +
-"\n" +
-"vec4 sphericalEnvironmentMap(vec3 view_pos, vec3 position, vec3 normal, sampler2D envmap) {\n" +
-"    // Normalized vector from camera to surface\n" +
-"    vec3 eye = normalize(position.xyz - view_pos.xyz);\n" +
-"\n" +
-"    // Force surfaces to be in front of camera (safeguard that fixes fake camera optics)\n" +
-"    if (eye.z > 0.01) {\n" +
-"        eye.z = 0.01;\n" +
-"    }\n" +
-"\n" +
-"    // Reflection of eye off of surface normal\n" +
-"    vec3 r = reflect(eye, normal);\n" +
-"\n" +
-"    // Map reflected vector onto the surface of a sphere\n" +
-"    r.z += 1.;\n" +
-"    float m = 2. * length(r);\n" +
-"\n" +
-"    // Adjust xy to account for spherical shape, and center in middle of texture\n" +
-"    vec2 uv = r.xy / m + .5;\n" +
-"\n" +
-"    // Sample the environment map\n" +
-"    return texture2D(envmap, uv);\n" +
-"}\n" +
-"\n" +
-"#pragma glslify: export(sphericalEnvironmentMap)\n" +
 "";
 
 shaderSources['modules/reorder_layers'] =
@@ -150,66 +115,86 @@ shaderSources['modules/specular_point_light'] =
 "#pragma glslify: export(specularLight)\n" +
 "";
 
-shaderSources['polygon_vertex'] =
+shaderSources['modules/spherical_environment_map'] =
+"// Spherical environment map\n" +
+"// Based on: http://www.clicktorelease.com/blog/creating-spherical-environment-mapping-shader\n" +
+"\n" +
+"// view_pos: location of camera\n" +
+"// position: location of current point on surface\n" +
+"// normal: normal of current piont on surface\n" +
+"// envmap: spherical environment map texture\n" +
+"\n" +
+"vec4 sphericalEnvironmentMap(vec3 view_pos, vec3 position, vec3 normal, sampler2D envmap) {\n" +
+"    // Normalized vector from camera to surface\n" +
+"    vec3 eye = normalize(position.xyz - view_pos.xyz);\n" +
+"\n" +
+"    // Force surfaces to be in front of camera (safeguard that fixes fake camera optics)\n" +
+"    if (eye.z > 0.01) {\n" +
+"        eye.z = 0.01;\n" +
+"    }\n" +
+"\n" +
+"    // Reflection of eye off of surface normal\n" +
+"    vec3 r = reflect(eye, normal);\n" +
+"\n" +
+"    // Map reflected vector onto the surface of a sphere\n" +
+"    r.z += 1.;\n" +
+"    float m = 2. * length(r);\n" +
+"\n" +
+"    // Adjust xy to account for spherical shape, and center in middle of texture\n" +
+"    vec2 uv = r.xy / m + .5;\n" +
+"\n" +
+"    // Sample the environment map\n" +
+"    return texture2D(envmap, uv);\n" +
+"}\n" +
+"\n" +
+"#pragma glslify: export(sphericalEnvironmentMap)\n" +
+"";
+
+shaderSources['point_fragment'] =
 "uniform vec2 u_resolution;\n" +
-"uniform vec2 u_aspect;\n" +
-"uniform float u_time;\n" +
-"uniform float u_map_zoom;\n" +
-"uniform vec2 u_map_center;\n" +
-"uniform vec2 u_tile_origin;\n" +
-"uniform mat4 u_tile_world;\n" +
-"uniform mat4 u_tile_view;\n" +
-"uniform float u_meters_per_pixel;\n" +
-"uniform float u_order_min;\n" +
-"uniform float u_order_range;\n" +
+"\n" +
+"varying vec4 v_color;\n" +
+"varying vec2 v_texcoord;\n" +
+"\n" +
+"void main (void) {\n" +
+"    vec4 color = v_color;\n" +
+"    vec3 lighting = vec3(1.);\n" +
+"\n" +
+"    // Simple threshold at dot radius\n" +
+"    vec2 uv = v_texcoord * 2. - 1.;\n" +
+"    float len = length(uv);\n" +
+"    if (len > 1.) {\n" +
+"        discard;\n" +
+"    }\n" +
+"    color.rgb *= (1. - smoothstep(.25, 1., len)) + 0.5;\n" +
+"\n" +
+"    #pragma tangram: fragment\n" +
+"\n" +
+"    gl_FragColor = color;\n" +
+"}\n" +
+"";
+
+shaderSources['point_vertex'] =
+"uniform mat4 u_modelView;\n" +
+"uniform float u_num_layers;\n" +
 "\n" +
 "attribute vec3 a_position;\n" +
-"attribute vec3 a_normal;\n" +
+"attribute vec2 a_texcoord;\n" +
 "attribute vec4 a_color;\n" +
 "attribute float a_layer;\n" +
 "\n" +
 "varying vec4 v_color;\n" +
-"varying vec4 v_world_position;\n" +
-"\n" +
-"// Optional texture UVs\n" +
-"#if defined(TEXTURE_COORDS)\n" +
-"    attribute vec2 a_texcoord;\n" +
-"    varying vec2 v_texcoord;\n" +
-"#endif\n" +
-"\n" +
-"// Define a wrap value for world coordinates (allows more precision at higher zooms)\n" +
-"// e.g. at wrap 1000, the world space will wrap every 1000 meters\n" +
-"#if defined(WORLD_POSITION_WRAP)\n" +
-"    vec2 world_position_anchor = vec2(floor(u_tile_origin / WORLD_POSITION_WRAP) * WORLD_POSITION_WRAP);\n" +
-"\n" +
-"    // Convert back to absolute world position if needed\n" +
-"    vec4 absoluteWorldPosition () {\n" +
-"        return vec4(v_world_position.xy + world_position_anchor, v_world_position.z, v_world_position.w);\n" +
-"    }\n" +
-"#else\n" +
-"    vec4 absoluteWorldPosition () {\n" +
-"        return v_world_position;\n" +
-"    }\n" +
-"#endif\n" +
+"varying vec2 v_texcoord;\n" +
 "\n" +
 "#if defined(FEATURE_SELECTION)\n" +
 "    attribute vec4 a_selection_color;\n" +
 "    varying vec4 v_selection_color;\n" +
 "#endif\n" +
 "\n" +
-"#if !defined(LIGHTING_VERTEX)\n" +
-"    varying vec4 v_position;\n" +
-"    varying vec3 v_normal;\n" +
-"#else\n" +
-"    varying vec3 v_lighting;\n" +
-"#endif\n" +
-"\n" +
 "#pragma tangram: globals\n" +
 "#pragma tangram: camera\n" +
-"#pragma tangram: lighting\n" +
 "\n" +
 "void main() {\n" +
-"    // Selection pass-specific rendering\n" +
 "    #if defined(FEATURE_SELECTION)\n" +
 "        if (a_selection_color.rgb == vec3(0.)) {\n" +
 "            // Discard by forcing invalid triangle if we\'re in the feature\n" +
@@ -221,39 +206,17 @@ shaderSources['polygon_vertex'] =
 "        v_selection_color = a_selection_color;\n" +
 "    #endif\n" +
 "\n" +
-"    // Position\n" +
-"    vec4 position = u_tile_view * vec4(a_position, 1.);\n" +
+"    vec4 position = u_modelView * vec4(a_position, 1.);\n" +
 "\n" +
-"    // Texture UVs\n" +
-"    #if defined(TEXTURE_COORDS)\n" +
-"        v_texcoord = a_texcoord;\n" +
-"    #endif\n" +
-"\n" +
-"    // World coordinates for 3d procedural textures\n" +
-"    v_world_position = u_tile_world * vec4(a_position, 1.);\n" +
-"    #if defined(WORLD_POSITION_WRAP)\n" +
-"        v_world_position.xy -= world_position_anchor;\n" +
-"    #endif\n" +
-"\n" +
-"    // Style-specific vertex transformations\n" +
 "    #pragma tangram: vertex\n" +
 "\n" +
-"    // Shading\n" +
-"    #if defined(LIGHTING_VERTEX)\n" +
-"        v_color = a_color;\n" +
-"        v_lighting = calculateLighting(position, a_normal, vec3(1.));\n" +
-"    #else\n" +
-"        // Send to fragment shader for per-pixel lighting\n" +
-"        v_position = position;\n" +
-"        v_normal = a_normal;\n" +
-"        v_color = a_color;\n" +
-"    #endif\n" +
+"    v_color = a_color;\n" +
+"    v_texcoord = a_texcoord;\n" +
 "\n" +
-"    // Camera\n" +
 "    cameraProjection(position);\n" +
 "\n" +
 "    // Re-orders depth so that higher numbered layers are \"force\"-drawn over lower ones\n" +
-"    reorderLayers(a_layer + u_order_min, u_order_range, position);\n" +
+"    reorderLayers(a_layer, u_num_layers, position);\n" +
 "\n" +
 "    gl_Position = position;\n" +
 "}\n" +
@@ -343,27 +306,67 @@ shaderSources['polygon_fragment'] =
 "}\n" +
 "";
 
-shaderSources['point_vertex'] =
-"uniform mat4 u_tile_view;\n" +
-"uniform float u_num_layers;\n" +
+shaderSources['polygon_vertex'] =
+"uniform vec2 u_resolution;\n" +
+"uniform vec2 u_aspect;\n" +
+"uniform float u_time;\n" +
+"uniform float u_map_zoom;\n" +
+"uniform vec2 u_map_center;\n" +
+"uniform vec2 u_tile_origin;\n" +
+"uniform float u_meters_per_pixel;\n" +
+"uniform float u_order_min;\n" +
+"uniform float u_order_range;\n" +
+"\n" +
+"uniform mat4 u_model;\n" +
+"uniform mat4 u_modelView;\n" +
 "\n" +
 "attribute vec3 a_position;\n" +
-"attribute vec2 a_texcoord;\n" +
+"attribute vec3 a_normal;\n" +
 "attribute vec4 a_color;\n" +
 "attribute float a_layer;\n" +
 "\n" +
 "varying vec4 v_color;\n" +
-"varying vec2 v_texcoord;\n" +
+"varying vec4 v_world_position;\n" +
+"\n" +
+"// Optional texture UVs\n" +
+"#if defined(TEXTURE_COORDS)\n" +
+"    attribute vec2 a_texcoord;\n" +
+"    varying vec2 v_texcoord;\n" +
+"#endif\n" +
+"\n" +
+"// Define a wrap value for world coordinates (allows more precision at higher zooms)\n" +
+"// e.g. at wrap 1000, the world space will wrap every 1000 meters\n" +
+"#if defined(WORLD_POSITION_WRAP)\n" +
+"    vec2 world_position_anchor = vec2(floor(u_tile_origin / WORLD_POSITION_WRAP) * WORLD_POSITION_WRAP);\n" +
+"\n" +
+"    // Convert back to absolute world position if needed\n" +
+"    vec4 absoluteWorldPosition () {\n" +
+"        return vec4(v_world_position.xy + world_position_anchor, v_world_position.z, v_world_position.w);\n" +
+"    }\n" +
+"#else\n" +
+"    vec4 absoluteWorldPosition () {\n" +
+"        return v_world_position;\n" +
+"    }\n" +
+"#endif\n" +
 "\n" +
 "#if defined(FEATURE_SELECTION)\n" +
 "    attribute vec4 a_selection_color;\n" +
 "    varying vec4 v_selection_color;\n" +
 "#endif\n" +
 "\n" +
+"#if !defined(LIGHTING_VERTEX)\n" +
+"    varying vec4 v_position;\n" +
+"    varying vec3 v_normal;\n" +
+"#else\n" +
+"    varying vec3 v_lighting;\n" +
+"#endif\n" +
+"\n" +
 "#pragma tangram: globals\n" +
 "#pragma tangram: camera\n" +
+"#pragma tangram: lighting\n" +
 "\n" +
 "void main() {\n" +
+"    // Selection pass-specific rendering\n" +
 "    #if defined(FEATURE_SELECTION)\n" +
 "        if (a_selection_color.rgb == vec3(0.)) {\n" +
 "            // Discard by forcing invalid triangle if we\'re in the feature\n" +
@@ -375,18 +378,39 @@ shaderSources['point_vertex'] =
 "        v_selection_color = a_selection_color;\n" +
 "    #endif\n" +
 "\n" +
-"    // vec4 position = u_perspective * u_tile_view * vec4(a_position, 1.);\n" +
-"    vec4 position = u_tile_view * vec4(a_position, 1.);\n" +
+"    // Position\n" +
+"    vec4 position = u_modelView * vec4(a_position, 1.);\n" +
 "\n" +
+"    // Texture UVs\n" +
+"    #if defined(TEXTURE_COORDS)\n" +
+"        v_texcoord = a_texcoord;\n" +
+"    #endif\n" +
+"\n" +
+"    // World coordinates for 3d procedural textures\n" +
+"    v_world_position = u_model * vec4(a_position, 1.);\n" +
+"    #if defined(WORLD_POSITION_WRAP)\n" +
+"        v_world_position.xy -= world_position_anchor;\n" +
+"    #endif\n" +
+"\n" +
+"    // Style-specific vertex transformations\n" +
 "    #pragma tangram: vertex\n" +
 "\n" +
-"    v_color = a_color;\n" +
-"    v_texcoord = a_texcoord;\n" +
+"    // Shading\n" +
+"    #if defined(LIGHTING_VERTEX)\n" +
+"        v_color = a_color;\n" +
+"        v_lighting = calculateLighting(position, a_normal, vec3(1.));\n" +
+"    #else\n" +
+"        // Send to fragment shader for per-pixel lighting\n" +
+"        v_position = position;\n" +
+"        v_normal = a_normal;\n" +
+"        v_color = a_color;\n" +
+"    #endif\n" +
 "\n" +
+"    // Camera\n" +
 "    cameraProjection(position);\n" +
 "\n" +
 "    // Re-orders depth so that higher numbered layers are \"force\"-drawn over lower ones\n" +
-"    reorderLayers(a_layer, u_num_layers, position);\n" +
+"    reorderLayers(a_layer + u_order_min, u_order_range, position);\n" +
 "\n" +
 "    gl_Position = position;\n" +
 "}\n" +
@@ -403,30 +427,6 @@ shaderSources['selection_fragment'] =
 "    #else\n" +
 "        gl_FragColor = vec4(0., 0., 0., 1.);\n" +
 "    #endif\n" +
-"}\n" +
-"";
-
-shaderSources['point_fragment'] =
-"uniform vec2 u_resolution;\n" +
-"\n" +
-"varying vec4 v_color;\n" +
-"varying vec2 v_texcoord;\n" +
-"\n" +
-"void main (void) {\n" +
-"    vec4 color = v_color;\n" +
-"    vec3 lighting = vec3(1.);\n" +
-"\n" +
-"    // Simple threshold at dot radius\n" +
-"    vec2 uv = v_texcoord * 2. - 1.;\n" +
-"    float len = length(uv);\n" +
-"    if (len > 1.) {\n" +
-"        discard;\n" +
-"    }\n" +
-"    color.rgb *= (1. - smoothstep(.25, 1., len)) + 0.5;\n" +
-"\n" +
-"    #pragma tangram: fragment\n" +
-"\n" +
-"    gl_FragColor = color;\n" +
 "}\n" +
 "";
 

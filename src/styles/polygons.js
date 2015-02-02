@@ -49,21 +49,21 @@ Object.assign(Polygons, {
         this.vertex_layout = new GLVertexLayout(attribs);
     },
 
-    _parseFeature (feature, feature_style, context) {
+    _parseFeature (feature, rule_style, context) {
         var style = this.feature_style;
 
-        style.color = feature_style.color && StyleParser.parseColor(feature_style.color, context);
-        style.width = feature_style.width && StyleParser.parseDistance(feature_style.width, context);
-        style.z = (feature_style.z && StyleParser.parseDistance(feature_style.z || 0, context)) || StyleParser.defaults.z;
+        style.color = rule_style.color && StyleParser.parseColor(rule_style.color, context);
+        style.width = rule_style.width && StyleParser.parseDistance(rule_style.width, context);
+        style.z = (rule_style.z && StyleParser.parseDistance(rule_style.z || 0, context)) || StyleParser.defaults.z;
 
-        style.texture = feature_style.texture;
-        style.sprite = feature_style.sprite;
-        style.size = feature_style.size && StyleParser.parseDistance(feature_style.size, context);
+        style.texture = rule_style.texture;
+        style.sprite = rule_style.sprite;
+        style.size = rule_style.size && StyleParser.parseDistance(rule_style.size, context);
 
         // height defaults to feature height, but extrude style can dynamically adjust height by returning a number or array (instead of a boolean)
         style.height = feature.properties.height || StyleParser.defaults.height;
         style.min_height = feature.properties.min_height || StyleParser.defaults.min_height;
-        style.extrude = feature_style.extrude;
+        style.extrude = rule_style.extrude;
         if (style.extrude) {
             if (typeof style.extrude === 'function') {
                 style.extrude = style.extrude(context);
@@ -78,11 +78,16 @@ Object.assign(Polygons, {
             }
         }
 
+        style.cap = rule_style.cap;
+        style.join = rule_style.join;
+
         style.outline = style.outline || {};
-        if (feature_style.outline) {
-            style.outline.color = StyleParser.parseColor(feature_style.outline.color, context);
-            style.outline.width = StyleParser.parseDistance(feature_style.outline.width, context);
-            style.outline.tile_edges = feature_style.outline.tile_edges;
+        if (rule_style.outline) {
+            style.outline.color = StyleParser.parseColor(rule_style.outline.color, context);
+            style.outline.width = StyleParser.parseDistance(rule_style.outline.width, context);
+            style.outline.tile_edges = rule_style.outline.tile_edges;
+            style.outline.cap = rule_style.outline.cap || rule_style.cap;
+            style.outline.join = rule_style.outline.join || rule_style.join;
         }
         else {
             style.outline.color = null;
@@ -112,8 +117,8 @@ Object.assign(Polygons, {
             color[0] * 255, color[1] * 255, color[2] * 255, color[3] * 255,
             // selection color
             style.selection_color[0] * 255, style.selection_color[1] * 255, style.selection_color[2] * 255, style.selection_color[3] * 255,
-            // layer number
-            style.layer
+            // draw order
+            style.order
         ];
 
         if (this.texcoords) {
@@ -165,11 +170,11 @@ Object.assign(Polygons, {
             for (var mpc=0; mpc < polygons.length; mpc++) {
                 GLBuilders.buildPolylines(
                     polygons[mpc],
-                    style.z,
                     style.outline.width,
                     vertex_data,
                     vertex_template,
                     {
+                        join: style.outline.join,
                         texcoord_index: this.vertex_layout.index.a_texcoord,
                         texcoord_scale: this.texcoord_scale,
                         closed_polygon: true,
@@ -187,11 +192,12 @@ Object.assign(Polygons, {
         if (style.color && style.width) {
             GLBuilders.buildPolylines(
                 lines,
-                style.z,
                 style.width,
                 vertex_data,
                 vertex_template,
                 {
+                    cap: style.cap,
+                    join: style.join,
                     texcoord_index: this.vertex_layout.index.a_texcoord,
                     texcoord_scale: this.texcoord_scale
                 }
@@ -214,11 +220,12 @@ Object.assign(Polygons, {
 
             GLBuilders.buildPolylines(
                 lines,
-                style.z,
                 style.width + 2 * style.outline.width,
                 vertex_data,
                 vertex_template,
                 {
+                    cap: style.outline.cap,
+                    join: style.outline.join,
                     texcoord_index: this.vertex_layout.index.a_texcoord,
                     texcoord_scale: this.texcoord_scale
                 }
