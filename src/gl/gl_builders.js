@@ -71,19 +71,22 @@ GLBuilders.buildExtrudedPolygons = function (
     normal_index,
     { texcoord_index, texcoord_scale }) {
     console.log("build");
-    console.log(vertex_data.length);
+    console.log('p',polygons);
+
     var min_z = z + (min_height || 0);
     var max_z = z + height;
 
     // Bottom
     vertex_template[2] = min_z;
     GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
-    console.log(vertex_data);
+    // console.log(vertex_data);
+    // the vertex_template is modified
 
     // Top
     vertex_template[2] = max_z;
     GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
-    console.log(vertex_data);
+    // console.log(vertex_data);
+    // console.log('v',vertex_template);
 
     // Walls
     // Fit UVs to wall quad
@@ -103,6 +106,7 @@ GLBuilders.buildExtrudedPolygons = function (
     var num_polygons = polygons.length; // almost always 1
 
     for (var p=0; p < num_polygons; p++) {
+    // for (var p=0; p < 0; p++) {
         var polygon = polygons[p];
 
         for (var q=0; q < polygon.length; q++) {
@@ -147,7 +151,6 @@ GLBuilders.buildExtrudedPolygons = function (
             }
         }
     }
-        console.log(vertex_data);
 
 };
 
@@ -270,18 +273,18 @@ GLBuilders.buildPolylines = function (
 
             //  Compute current normal
             if (isPrev) {
-                //  If there is a PREVIUS ...
+                //  If there is a PREVIOUS ...
                 if (isNext) {
-                    // ... and a NEXT ONE, compute previus and next normals (scaled by the angle with the last prev)
+                    // ... and a NEXT ONE, compute previous and next normals (scaled by the angle with the last prev)
                     normCurr = Vector.normalize(Vector.add(normPrev, normNext));
                     var scale = 2 / (1 + Math.abs(Vector.dot(normPrev, normCurr)));
                     normCurr = Vector.mult(normCurr,scale*scale);
                 } else {
-                    // ... and there is NOT a NEXT ONE, copy the previus next one (which is the current one)
+                    // ... and there is NOT a NEXT ONE, copy the previous next one (which is the current one)
                     normCurr = Vector.normalize(Vector.perp(coordPrev, coordCurr));
                 }
             } else {
-                // If is NOT a PREVIUS ...
+                // If is NOT a PREVIOUS ...
                 if (isNext) {
                     // ... and a NEXT ONE,
                     normNext = Vector.normalize(Vector.perp(coordCurr, coordNext));
@@ -293,7 +296,7 @@ GLBuilders.buildPolylines = function (
             }
 
             if (isPrev || isNext) {
-                // If is the BEGINING of a LINE
+                // If is the BEGINNING of a LINE
                 if (i === 0 && !isPrev && !closed_polygon) {
                     addCap(coordCurr, normCurr, cornersOnCap, true, constants);
                 }
@@ -338,7 +341,7 @@ function addVertex(coord, normal, uv, { halfWidth, vertices, scalingVecs, texcoo
                        coord[1] + normal[1] * halfWidth]);
     }
 
-    // c) Add uv's if they are enable
+    // c. Add uv's if they are enabled
     if (texcoords) {
         texcoords.push(uv);
     }
@@ -382,7 +385,7 @@ function addFan (coord, nA, nC, nB, uA, uC, uB, signed, numTriangles, constants)
     var uv_delta = Vector.div(Vector.sub(uB,uA), numTriangles);
 
     //  Add the first and CENTER vertex
-    //  The triangles will be composed on FAN style arround it
+    //  The triangles will be composed on FAN style around it
     addVertex(coord, nC, uC, constants);
 
     //  Add first corner
