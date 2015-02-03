@@ -44,7 +44,7 @@ styles:
 
     water:
         extends: polygons
-        animated: true
+        # animated: true
         shaders:
             defines:
                 EFFECT_NOISE_ANIMATED: true

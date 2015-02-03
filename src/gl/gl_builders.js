@@ -70,12 +70,20 @@ GLBuilders.buildExtrudedPolygons = function (
     vertex_data, vertex_template,
     normal_index,
     { texcoord_index, texcoord_scale }) {
-
-    // Top
+    console.log("build");
+    console.log(vertex_data.length);
     var min_z = z + (min_height || 0);
     var max_z = z + height;
+
+    // Bottom
+    vertex_template[2] = min_z;
+    GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
+    console.log(vertex_data);
+
+    // Top
     vertex_template[2] = max_z;
     GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
+    console.log(vertex_data);
 
     // Walls
     // Fit UVs to wall quad
@@ -92,12 +100,13 @@ GLBuilders.buildExtrudedPolygons = function (
         ];
     }
 
-    var num_polygons = polygons.length;
+    var num_polygons = polygons.length; // almost always 1
+
     for (var p=0; p < num_polygons; p++) {
         var polygon = polygons[p];
 
         for (var q=0; q < polygon.length; q++) {
-            var contour = polygon[q];
+            var contour = polygon[q]; // line segment
 
             for (var w=0; w < contour.length - 1; w++) {
                 // Two triangles for the quad formed by each vertex pair, going from bottom to top height
@@ -138,6 +147,8 @@ GLBuilders.buildExtrudedPolygons = function (
             }
         }
     }
+        console.log(vertex_data);
+
 };
 
 // Build tessellated triangles for a polyline
