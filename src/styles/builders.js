@@ -76,27 +76,9 @@ Builders.buildExtrudedPolygons = function (
     vertex_data, vertex_template,
     normal_index,
     { texcoord_index, texcoord_scale }) {
-    console.log("build");
-    console.log('p',polygons);
 
     var min_z = z + (min_height || 0);
     var max_z = z + height;
-
-    // Bottom
-    vertex_template[2] = min_z;
-    GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
-    // console.log(vertex_data);
-    // the vertex_template is modified
-
-    // Top
-    vertex_template[2] = max_z;
-<<<<<<< HEAD:src/gl/gl_builders.js
-    GLBuilders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
-    // console.log(vertex_data);
-    // console.log('v',vertex_template);
-=======
-    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
->>>>>>> origin/gl-rename:src/styles/builders.js
 
     // Walls
     // Fit UVs to wall quad
@@ -114,7 +96,7 @@ Builders.buildExtrudedPolygons = function (
     }
 
     var num_polygons = polygons.length; // almost always 1
-
+    var min_x = 0, min_y = 0;
     for (var p=0; p < num_polygons; p++) {
     // for (var p=0; p < 0; p++) {
         var polygon = polygons[p];
@@ -123,6 +105,16 @@ Builders.buildExtrudedPolygons = function (
             var contour = polygon[q]; // line segment
 
             for (var w=0; w < contour.length - 1; w++) {
+
+                // makerbot printing check:
+                // check to see if polygon overlaps top or left edges of tile –
+                // if it does, skip it - this way only one copy of every building is printed
+                // and the tiles should fit together like puzzle pieces
+                // console.log('contour', contour);
+                min_x = Math.min(min_x, contour[w][0]);
+                min_y = Math.min(min_y, contour[w][1]);
+                if (contour[w][0] < 0 || contour[w][1] < -4096) return;
+
                 // Two triangles for the quad formed by each vertex pair, going from bottom to top height
                 var wall_vertices = [
                     // Triangle
@@ -161,6 +153,15 @@ Builders.buildExtrudedPolygons = function (
             }
         }
     }
+    console.log('min_x, min_y', min_x, min_y);
+
+    // Top
+    vertex_template[2] = max_z;
+    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
+
+    // Bottom
+    vertex_template[2] = min_z;
+    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
 
 };
 
