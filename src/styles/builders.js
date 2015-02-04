@@ -80,6 +80,38 @@ Builders.buildExtrudedPolygons = function (
     var min_z = z + (min_height || 0);
     var max_z = z + height;
 
+    // makerbot printing check:
+    // check to see if any polygon overlaps top or left edges of tile –
+    // if it does, skip the whole feature.
+    // this way only one copy of every building is printed
+    // and the tiles should fit together like puzzle pieces
+
+    var num_polygons = polygons.length; // almost always 1
+    // var min_x = 0, min_y = 0;
+    for (var p=0; p < num_polygons; p++) {
+        var polygon = polygons[p];
+
+        for (var q=0; q < polygon.length; q++) {
+            var contour = polygon[q]; // line segment
+            // console.log('contour', contour);
+
+            for (var w=0; w < contour.length - 1; w++) {
+
+                // min_x = Math.min(min_x, contour[w][0]);
+                // min_y = Math.min(min_y, contour[w][1]);
+                if (contour[w][0] < 0 || contour[w][1] < -4096) return;
+            }
+        }
+    }
+
+    // Top
+    vertex_template[2] = max_z;
+    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
+
+    // Bottom
+    vertex_template[2] = min_z;
+    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
+
     // Walls
     // Fit UVs to wall quad
     var [[min_u, min_v], [max_u, max_v]] = texcoord_scale || [[0, 0], [1, 1]];
@@ -95,8 +127,6 @@ Builders.buildExtrudedPolygons = function (
         ];
     }
 
-    var num_polygons = polygons.length; // almost always 1
-    var min_x = 0, min_y = 0;
     for (var p=0; p < num_polygons; p++) {
     // for (var p=0; p < 0; p++) {
         var polygon = polygons[p];
@@ -105,15 +135,6 @@ Builders.buildExtrudedPolygons = function (
             var contour = polygon[q]; // line segment
 
             for (var w=0; w < contour.length - 1; w++) {
-
-                // makerbot printing check:
-                // check to see if polygon overlaps top or left edges of tile –
-                // if it does, skip it - this way only one copy of every building is printed
-                // and the tiles should fit together like puzzle pieces
-                // console.log('contour', contour);
-                min_x = Math.min(min_x, contour[w][0]);
-                min_y = Math.min(min_y, contour[w][1]);
-                if (contour[w][0] < 0 || contour[w][1] < -4096) return;
 
                 // Two triangles for the quad formed by each vertex pair, going from bottom to top height
                 var wall_vertices = [
@@ -153,15 +174,7 @@ Builders.buildExtrudedPolygons = function (
             }
         }
     }
-    console.log('min_x, min_y', min_x, min_y);
-
-    // Top
-    vertex_template[2] = max_z;
-    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
-
-    // Bottom
-    vertex_template[2] = min_z;
-    Builders.buildPolygons(polygons, vertex_data, vertex_template, { texcoord_index });
+    // console.log('min_x, min_y', min_x, min_y);
 
 };
 
