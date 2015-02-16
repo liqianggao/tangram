@@ -7,107 +7,105 @@
 // take in a selection of tiles from landgrab and pass files/data directly to vbo-export
 //
 
-delay = 10000; // milliseconds
-
 window.exportVBO = function (callback) {
 
-mytiles = [{'x': 9650.0, 'y': 12317.0, 'z': 15},
+var mytiles = [{'x': 9650.0, 'y': 12317.0, 'z': 15},
  {'x': 9651.0, 'y': 12316.0, 'z': 15},
- // {'x': 9648.0, 'y': 12318, 'z': 15}];
- {'x': 9648.0, 'y': 12318, 'z': 15},
- {'x': 9647.0, 'y': 12317.0, 'z': 15},
- {'x': 9650.0, 'y': 12319.0, 'z': 15},
- {'x': 9651.0, 'y': 12314.0, 'z': 15},
- {'x': 9649.0, 'y': 12315, 'z': 15},
- {'x': 9654.0, 'y': 12305.0, 'z': 15},
- {'x': 9654.0, 'y': 12311.0, 'z': 15},
- {'x': 9654.0, 'y': 12304.0, 'z': 15},
- {'x': 9651.0, 'y': 12313, 'z': 15},
- {'x': 9647.0, 'y': 12316.0, 'z': 15},
- {'x': 9648, 'y': 12317.0, 'z': 15},
- {'x': 9650.0, 'y': 12320.0, 'z': 15},
- {'x': 9649.0, 'y': 12318, 'z': 15},
- {'x': 9653.0, 'y': 12313.0, 'z': 15},
- {'x': 9653.0, 'y': 12305.0, 'z': 15},
- {'x': 9652.0, 'y': 12308, 'z': 15},
- {'x': 9649, 'y': 12317.0, 'z': 15},
- {'x': 9648.0, 'y': 12314.0, 'z': 15},
- {'x': 9650.0, 'y': 12312, 'z': 15},
- {'x': 9651.0, 'y': 12307.0, 'z': 15},
- {'x': 9652.0, 'y': 12313.0, 'z': 15},
- {'x': 9654.0, 'y': 12303.0, 'z': 15},
- {'x': 9654.0, 'y': 12300.0, 'z': 15},
- {'x': 9649.0, 'y': 12316, 'z': 15},
- {'x': 9648.0, 'y': 12315, 'z': 15},
- {'x': 9647.0, 'y': 12315.0, 'z': 15},
- {'x': 9654.0, 'y': 12307.0, 'z': 15},
- {'x': 9647, 'y': 12320.0, 'z': 15},
- {'x': 9648.0, 'y': 12312.0, 'z': 15},
- {'x': 9649.0, 'y': 12320.0, 'z': 15},
- {'x': 9648.0, 'y': 12313.0, 'z': 15},
- {'x': 9650.0, 'y': 12314, 'z': 15},
- {'x': 9656.0, 'y': 12301.0, 'z': 15},
- {'x': 9652, 'y': 12311.0, 'z': 15},
- {'x': 9654.0, 'y': 12310.0, 'z': 15},
- {'x': 9647.0, 'y': 12314.0, 'z': 15},
- {'x': 9650.0, 'y': 12316.0, 'z': 15},
- {'x': 9652.0, 'y': 12309, 'z': 15},
- {'x': 9650.0, 'y': 12310.0, 'z': 15},
- {'x': 9646.0, 'y': 12321.0, 'z': 15},
- {'x': 9648.0, 'y': 12321.0, 'z': 15},
- {'x': 9652.0, 'y': 12312, 'z': 15},
- {'x': 9653.0, 'y': 12306, 'z': 15},
- {'x': 9655.0, 'y': 12301, 'z': 15},
- {'x': 9651, 'y': 12309.0, 'z': 15},
- {'x': 9650.0, 'y': 12313, 'z': 15},
- {'x': 9653, 'y': 12309.0, 'z': 15},
- {'x': 9651.0, 'y': 12315.0, 'z': 15},
- {'x': 9646.0, 'y': 12319.0, 'z': 15},
- {'x': 9647.0, 'y': 12319.0, 'z': 15},
- {'x': 9653.0, 'y': 12311.0, 'z': 15},
- {'x': 9653.0, 'y': 12303.0, 'z': 15},
- {'x': 9650.0, 'y': 12309.0, 'z': 15},
- {'x': 9652.0, 'y': 12314.0, 'z': 15},
- {'x': 9654.0, 'y': 12306.0, 'z': 15},
- {'x': 9654.0, 'y': 12309.0, 'z': 15},
- {'x': 9650.0, 'y': 12311, 'z': 15},
- {'x': 9648, 'y': 12316.0, 'z': 15},
- {'x': 9649.0, 'y': 12312.0, 'z': 15},
- {'x': 9654.0, 'y': 12308.0, 'z': 15},
- {'x': 9656.0, 'y': 12302.0, 'z': 15},
- {'x': 9653.0, 'y': 12302.0, 'z': 15},
- {'x': 9647.0, 'y': 12318.0, 'z': 15},
- {'x': 9655.0, 'y': 12302.0, 'z': 15},
- {'x': 9655.0, 'y': 12300.0, 'z': 15},
- {'x': 9648, 'y': 12319.0, 'z': 15},
- {'x': 9652.0, 'y': 12307.0, 'z': 15},
- {'x': 9651.0, 'y': 12308.0, 'z': 15},
- {'x': 9653, 'y': 12307.0, 'z': 15},
- {'x': 9649, 'y': 12314.0, 'z': 15},
- {'x': 9650.0, 'y': 12315, 'z': 15},
- {'x': 9654.0, 'y': 12301.0, 'z': 15},
- {'x': 9649.0, 'y': 12313, 'z': 15},
- {'x': 9652.0, 'y': 12306.0, 'z': 15},
- {'x': 9649.0, 'y': 12311.0, 'z': 15},
- {'x': 9655.0, 'y': 12303.0, 'z': 15},
- {'x': 9653.0, 'y': 12304.0, 'z': 15},
- {'x': 9651, 'y': 12311.0, 'z': 15},
- {'x': 9646.0, 'y': 12320.0, 'z': 15},
- {'x': 9648.0, 'y': 12320.0, 'z': 15},
- {'x': 9656.0, 'y': 12300.0, 'z': 15},
- {'x': 9650.0, 'y': 12318.0, 'z': 15},
- {'x': 9653, 'y': 12310.0, 'z': 15},
- {'x': 9653.0, 'y': 12312.0, 'z': 15},
- {'x': 9650.0, 'y': 12308.0, 'z': 15},
- {'x': 9649.0, 'y': 12310.0, 'z': 15},
- {'x': 9651.0, 'y': 12312, 'z': 15},
- {'x': 9649, 'y': 12319.0, 'z': 15},
- {'x': 9651.0, 'y': 12310, 'z': 15},
- {'x': 9654.0, 'y': 12302.0, 'z': 15},
- {'x': 9652.0, 'y': 12310, 'z': 15},
- {'x': 9653, 'y': 12308.0, 'z': 15},
- {'x': 9652.0, 'y': 12305.0, 'z': 15},
- {'x': 9647.0, 'y': 12321.0, 'z': 15}];
+ {'x': 9648.0, 'y': 12318, 'z': 15}];
+ // {'x': 9648.0, 'y': 12318, 'z': 15},
+ // {'x': 9647.0, 'y': 12317.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12319.0, 'z': 15},
+ // {'x': 9651.0, 'y': 12314.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12315, 'z': 15},
+ // {'x': 9654.0, 'y': 12305.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12311.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12304.0, 'z': 15},
+ // {'x': 9651.0, 'y': 12313, 'z': 15},
+ // {'x': 9647.0, 'y': 12316.0, 'z': 15},
+ // {'x': 9648, 'y': 12317.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12320.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12318, 'z': 15},
+ // {'x': 9653.0, 'y': 12313.0, 'z': 15},
+ // {'x': 9653.0, 'y': 12305.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12308, 'z': 15},
+ // {'x': 9649, 'y': 12317.0, 'z': 15},
+ // {'x': 9648.0, 'y': 12314.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12312, 'z': 15},
+ // {'x': 9651.0, 'y': 12307.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12313.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12303.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12300.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12316, 'z': 15},
+ // {'x': 9648.0, 'y': 12315, 'z': 15},
+ // {'x': 9647.0, 'y': 12315.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12307.0, 'z': 15},
+ // {'x': 9647, 'y': 12320.0, 'z': 15},
+ // {'x': 9648.0, 'y': 12312.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12320.0, 'z': 15},
+ // {'x': 9648.0, 'y': 12313.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12314, 'z': 15},
+ // {'x': 9656.0, 'y': 12301.0, 'z': 15},
+ // {'x': 9652, 'y': 12311.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12310.0, 'z': 15},
+ // {'x': 9647.0, 'y': 12314.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12316.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12309, 'z': 15},
+ // {'x': 9650.0, 'y': 12310.0, 'z': 15},
+ // {'x': 9646.0, 'y': 12321.0, 'z': 15},
+ // {'x': 9648.0, 'y': 12321.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12312, 'z': 15},
+ // {'x': 9653.0, 'y': 12306, 'z': 15},
+ // {'x': 9655.0, 'y': 12301, 'z': 15},
+ // {'x': 9651, 'y': 12309.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12313, 'z': 15},
+ // {'x': 9653, 'y': 12309.0, 'z': 15},
+ // {'x': 9651.0, 'y': 12315.0, 'z': 15},
+ // {'x': 9646.0, 'y': 12319.0, 'z': 15},
+ // {'x': 9647.0, 'y': 12319.0, 'z': 15},
+ // {'x': 9653.0, 'y': 12311.0, 'z': 15},
+ // {'x': 9653.0, 'y': 12303.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12309.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12314.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12306.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12309.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12311, 'z': 15},
+ // {'x': 9648, 'y': 12316.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12312.0, 'z': 15},
+ // {'x': 9654.0, 'y': 12308.0, 'z': 15},
+ // {'x': 9656.0, 'y': 12302.0, 'z': 15},
+ // {'x': 9653.0, 'y': 12302.0, 'z': 15},
+ // {'x': 9647.0, 'y': 12318.0, 'z': 15},
+ // {'x': 9655.0, 'y': 12302.0, 'z': 15},
+ // {'x': 9655.0, 'y': 12300.0, 'z': 15},
+ // {'x': 9648, 'y': 12319.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12307.0, 'z': 15},
+ // {'x': 9651.0, 'y': 12308.0, 'z': 15},
+ // {'x': 9653, 'y': 12307.0, 'z': 15},
+ // {'x': 9649, 'y': 12314.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12315, 'z': 15},
+ // {'x': 9654.0, 'y': 12301.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12313, 'z': 15},
+ // {'x': 9652.0, 'y': 12306.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12311.0, 'z': 15},
+ // {'x': 9655.0, 'y': 12303.0, 'z': 15},
+ // {'x': 9653.0, 'y': 12304.0, 'z': 15},
+ // {'x': 9651, 'y': 12311.0, 'z': 15},
+ // {'x': 9646.0, 'y': 12320.0, 'z': 15},
+ // {'x': 9648.0, 'y': 12320.0, 'z': 15},
+ // {'x': 9656.0, 'y': 12300.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12318.0, 'z': 15},
+ // {'x': 9653, 'y': 12310.0, 'z': 15},
+ // {'x': 9653.0, 'y': 12312.0, 'z': 15},
+ // {'x': 9650.0, 'y': 12308.0, 'z': 15},
+ // {'x': 9649.0, 'y': 12310.0, 'z': 15},
+ // {'x': 9651.0, 'y': 12312, 'z': 15},
+ // {'x': 9649, 'y': 12319.0, 'z': 15},
+ // {'x': 9651.0, 'y': 12310, 'z': 15},
+ // {'x': 9654.0, 'y': 12302.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12310, 'z': 15},
+ // {'x': 9653, 'y': 12308.0, 'z': 15},
+ // {'x': 9652.0, 'y': 12305.0, 'z': 15},
+ // {'x': 9647.0, 'y': 12321.0, 'z': 15}];
 
 // find tile range
 min = {x: Infinity, y: Infinity};
@@ -125,49 +123,84 @@ for (t in mytiles) {
 }
 console.log("min:", min);
 console.log("max:", max);
-console.log("mytiles", mytiles);
-console.log("scene._loadTile", scene._loadTile);
-
-for (t in mytiles) { console.log(mytiles[t]);scene._loadTile(mytiles[t]); }
 
 // prepare a list of vbos
 vbos = [];
 
-// wait for the _loadTile functions to complete
-setTimeout(function(){
+function waitForVerts(callback, arguments) {
+  // console.log("waiting for verts", arguments);
+  var args = arguments
+  setTimeout(function () {
+    // console.log("arguments", args);
+    if (typeof scene.tiles[coords] != "undefined") {
+      if (typeof scene.tiles[coords].meshes.polygons != "undefined") {
+        if (typeof scene.tiles[coords].meshes.polygons.vertex_data != "undefined") {
+            // console.log(object, "found, continuing");
+            callback(args);
+            return;
+        }
+      }
+    }
+    // console.log("failed:", object, e);
+    waitForVerts(callback, args);
+  }, 1000);
+}
+
+function waitForWorkers(callback) {
+  // console.log("waiting for", object);
+  setTimeout(function () {
+    if (typeof scene.workers != "undefined") {
+      if (typeof scene.workers[scene.next_worker] != "undefined") {
+        if (typeof scene.center_meters != "undefined") {
+          // console.log(object, "found, continuing");
+          callback(arguments);
+          return;
+        }
+      }
+    }
+    // console.log("failed:", object, e);
+    waitForWorkers(callback, arguments);
+  }, 1000);
+}
+
+function waitForVBOs(callback) {
+  // console.log("waiting for", object);
+  setTimeout(function () {
+    if (vbos.length == mytiles.length) {
+        // console.log(object, "found, continuing");
+        callback(arguments);
+        return;
+    }
+    waitForVBOs(callback, arguments);
+  }, 1000);
+}
+
+function loadTiles() {
   for (t in mytiles) {
-    mt = mytiles[t];
-    coords = mt.x+"/"+mt.y+"/"+mt.z;
+    console.log(">> LOADING", mytiles[t]);
+    scene._loadTile(mytiles[t]);
+  }
+}
 
-    // calculate offset relative to the extents of the tile batch -
-    // the top-left tile is 0,0 - one tile over is 1,0 - one tile down is 0,1
-    offset = {x: mt.x - min.x, y: mt.y - min.y};
-    // multiply the offset by the local tile coordinate range for vertex position offset
-    offset.x *= 4096;
-    offset.y *= 4096;
-    // console.log("coords", coords);
-    // console.log("offset", offset);
-    // console.log(scene.tiles[coords]);
-    // console.log(scene.tiles);
-    while (!scene.tiles[coords].meshes.polygons.vertex_data) {
-      setTimeout(function(){return;}, 1000);
-    }
-    verts = Array.prototype.slice.call(new Float32Array(scene.tiles[coords].meshes.polygons.vertex_data));
-    length = verts.length / 9;
-    console.log("length:", length)
+function processVerts(coords) {
+  console.log("processVerts:", coords);
+  verts = Array.prototype.slice.call(new Float32Array(scene.tiles[coords].meshes.polygons.vertex_data));
+  length = verts.length / 9;
+  console.log("length:", length)
 
-    // apply offset to tile vertices
-    for (v in verts) {
-        if (v % 9 == 0) verts[v] += offset.x;
-        if (v % 9 == 1) verts[v] -= offset.y;
-    }
-
-    // make it one long string
-    verts = verts.join('\n');
-    // add it to file list for zipping
-    vbos.push(verts);
+  // apply offset to tile vertices
+  for (v in verts) {
+      if (v % 9 == 0) verts[v] += offset.x;
+      if (v % 9 == 1) verts[v] -= offset.y;
   }
 
+  // make it one long string
+  verts = verts.join('\n');
+  // add it to file list for zipping
+  vbos.push(verts);
+}
+
+function writeZip() {
   var zip = new JSZip();
   vbos = window.vbos;
   console.log("compressing "+vbos.length+" files...");
@@ -183,8 +216,30 @@ setTimeout(function(){
       blobLink.innerHTML += " " + e;
     }
   }
-  console.log("Done!")
+  console.log("Done!")  
+}
 
-}, delay);
+for (t in mytiles) {
+  mt = mytiles[t];
+  coords = mt.x+"/"+mt.y+"/"+mt.z;
+
+  // calculate offset relative to the extents of the tile batch -
+  // the top-left tile is 0,0 - one tile over is 1,0 - one tile down is 0,1
+  offset = {x: mt.x - min.x, y: mt.y - min.y};
+  // multiply the offset by the local tile coordinate range for vertex position offset
+  offset.x *= 4096;
+  offset.y *= 4096;
+  // console.log("coords", coords);
+  // console.log("offset", offset);
+  // console.log(scene.tiles[coords]);
+  // console.log(scene.tiles);
+  console.log("process this:", coords)
+  waitForVerts(processVerts, coords);
+}
+
+waitForWorkers(loadTiles);
+
+waitForVBOs(writeZip);
+
 
 }
