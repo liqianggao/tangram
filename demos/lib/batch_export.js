@@ -128,65 +128,65 @@ console.log("max:", max);
 vbos = [];
 
 function waitForVerts(callback, arguments) {
-  // console.log("waiting for verts", arguments);
-  var args = arguments
+  var coords = arguments
   setTimeout(function () {
-    // console.log("arguments", args);
+    // todo: determine which of these are necessary
+    // also todo: trigger this based on a _loadTile callback
     if (typeof scene.tiles[coords] != "undefined") {
-      if (typeof scene.tiles[coords].meshes.polygons != "undefined") {
-        if (typeof scene.tiles[coords].meshes.polygons.vertex_data != "undefined") {
-            // console.log(object, "found, continuing");
-            callback(args);
-            return;
+      if (typeof scene.tiles[coords].meshes != "undefined") {
+        if ( Object.keys(scene.tiles[coords].meshes).length != 0) {
+          if (typeof scene.tiles[coords].meshes.polygons != "undefined") {
+            if (typeof scene.tiles[coords].meshes.polygons.vertex_data != "undefined") {
+                callback(coords);
+                return;
+            }
+          }
         }
       }
     }
-    // console.log("failed:", object, e);
-    waitForVerts(callback, args);
+    // if not ready, try again
+    waitForVerts(callback, coords);
   }, 1000);
 }
 
 function waitForWorkers(callback) {
-  // console.log("waiting for", object);
   setTimeout(function () {
     if (typeof scene.workers != "undefined") {
       if (typeof scene.workers[scene.next_worker] != "undefined") {
         if (typeof scene.center_meters != "undefined") {
-          // console.log(object, "found, continuing");
-          callback(arguments);
+          callback();
           return;
         }
       }
     }
-    // console.log("failed:", object, e);
-    waitForWorkers(callback, arguments);
+    // if not ready, try again
+    waitForWorkers(callback);
   }, 1000);
 }
 
 function waitForVBOs(callback) {
-  // console.log("waiting for", object);
   setTimeout(function () {
     if (vbos.length == mytiles.length) {
-        // console.log(object, "found, continuing");
-        callback(arguments);
+        callback();
         return;
     }
-    waitForVBOs(callback, arguments);
+    // if not ready, try again
+    waitForVBOs(callback);
   }, 1000);
 }
 
 function loadTiles() {
   for (t in mytiles) {
-    console.log(">> LOADING", mytiles[t]);
+    // console.log(">> LOADING", mytiles[t]);
     scene._loadTile(mytiles[t]);
   }
 }
 
 function processVerts(coords) {
-  console.log("processVerts:", coords);
+  console.log("Processing tile", vbos.length + 1, "of", mytiles.length)
   verts = Array.prototype.slice.call(new Float32Array(scene.tiles[coords].meshes.polygons.vertex_data));
   length = verts.length / 9;
-  console.log("length:", length)
+  // console.log("length:", length)
 
   // apply offset to tile vertices
   for (v in verts) {
@@ -229,11 +229,8 @@ for (t in mytiles) {
   // multiply the offset by the local tile coordinate range for vertex position offset
   offset.x *= 4096;
   offset.y *= 4096;
-  // console.log("coords", coords);
-  // console.log("offset", offset);
-  // console.log(scene.tiles[coords]);
-  // console.log(scene.tiles);
-  console.log("process this:", coords)
+
+  // wait for tile to load, then process it
   waitForVerts(processVerts, coords);
 }
 
