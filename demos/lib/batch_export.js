@@ -127,8 +127,9 @@ console.log("max:", max);
 // prepare a list of vbos
 vbos = [];
 
-function waitForVerts(callback, arguments) {
-  var coords = arguments
+function waitForVerts(callback, coords, offset) {
+  var coords = coords;
+  console.log("coords:", coords);
   setTimeout(function () {
     // todo: determine which of these are necessary
     // also todo: trigger this based on a _loadTile callback
@@ -137,7 +138,7 @@ function waitForVerts(callback, arguments) {
         if ( Object.keys(scene.tiles[coords].meshes).length != 0) {
           if (typeof scene.tiles[coords].meshes.polygons != "undefined") {
             if (typeof scene.tiles[coords].meshes.polygons.vertex_data != "undefined") {
-                callback(coords);
+                callback(coords, offset);
                 return;
             }
           }
@@ -145,7 +146,7 @@ function waitForVerts(callback, arguments) {
       }
     }
     // if not ready, try again
-    waitForVerts(callback, coords);
+    waitForVerts(callback, coords, offset);
   }, 1000);
 }
 
@@ -182,7 +183,9 @@ function loadTiles() {
   }
 }
 
-function processVerts(coords) {
+function processVerts(coords, o) {
+  console.log("offset:", o);
+  var offset = o;
   console.log("Processing tile", vbos.length + 1, "of", mytiles.length)
   verts = Array.prototype.slice.call(new Float32Array(scene.tiles[coords].meshes.polygons.vertex_data));
   length = verts.length / 9;
@@ -225,13 +228,14 @@ for (t in mytiles) {
 
   // calculate offset relative to the extents of the tile batch -
   // the top-left tile is 0,0 - one tile over is 1,0 - one tile down is 0,1
-  offset = {x: mt.x - min.x, y: mt.y - min.y};
+  var offset = {x: mt.x - min.x, y: mt.y - min.y};
   // multiply the offset by the local tile coordinate range for vertex position offset
   offset.x *= 4096;
   offset.y *= 4096;
+  console.log("offset1:", offset);
 
   // wait for tile to load, then process it
-  waitForVerts(processVerts, coords);
+  waitForVerts(processVerts, coords, offset);
 }
 
 waitForWorkers(loadTiles);
